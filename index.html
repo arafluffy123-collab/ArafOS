@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solus OS - Budgie Desktop Architecture Simulator</title>
+    <style>
+        :root {
+            --solus-bg: #1a232a;
+            --panel-bg: rgba(20, 28, 33, 0.9);
+            --window-bg: #1e2a33;
+            --window-header: #253440;
+            --border-color: rgba(255, 255, 255, 0.07);
+            --accent-blue: #3b82f6;
+            --accent-cyan: #00b4d8;
+            --text-light: #f3f4f6;
+            --text-dim: #9ca3af;
+            --card-bg: rgba(0, 0, 0, 0.2);
+            --raven-bg: rgba(15, 22, 26, 0.95);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            font-family: 'Ubuntu', 'Segoe UI', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #111827 0%, #1e293b 100%);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            position: relative;
+            color: var(--text-light);
+        }
+
+        /* Solus Budgie Top Panel Bar */
+        .solus-top-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 36px;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 15px;
+            z-index: 2000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+
+        .panel-left-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .solus-menu-trigger {
+            font-weight: 700;
+            color: var(--accent-cyan);
+            cursor: pointer;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .panel-center-tray {
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+
+        .panel-right-group {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        .raven-toggle-btn {
+            cursor: pointer;
+            font-size: 1.1rem;
+            color: var(--text-light);
+            transition: color 0.15s ease;
+        }
+
+        .raven-toggle-btn:hover {
+            color: var(--accent-cyan);
+        }
+
+        /* Left-Aligned Floating Budgie Application Dock */
+        .budgie-dock-left {
+            position: fixed;
+            left: 10px;
+            top: 50px;
+            height: calc(100vh - 70px);
+            width: 50px;
+            background: var(--panel-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 15px 0;
+            gap: 12px;
+            z-index: 1500;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.4);
+        }
+
+        .dock-app-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+            cursor: pointer;
+            position: relative;
+            transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), background 0.15s ease;
+        }
+
+        .dock-app-icon:hover {
+            transform: scale(1.12);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .dock-app-icon::after {
+            content: '';
+            position: absolute;
+            left: 2px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 3px;
+            height: 0;
+            background: var(--accent-cyan);
+            border-radius: 999px;
+            transition: height 0.2s ease;
+        }
+
+        .dock-app-icon.running::after { height: 10px; }
+        .dock-app-icon.focused::after { height: 20px; background: white; }
+
+        /* Solus Workspace Grid Canvas */
+        .solus-desktop-workspace {
+            width: 100vw;
+            height: 100vh;
+            padding-top: 36px;
+            padding-left: 75px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* Budgie Window Management Framework */
+        .budgie-window {
+            position: absolute;
+            width: 620px;
+            height: 400px;
+            background: var(--window-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            box-shadow: 0 30px 70px rgba(0,0,0,0.6);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 10;
+            opacity: 0;
+            transform: scale(0.96);
+            pointer-events: none;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+
+        .budgie-window.window-open {
+            opacity: 1;
+            transform: scale(1);
+            pointer-events: auto;
+        }
+
+        /* Solus Budgie Left-Aligned Window Titlebar Controls */
+        .budgie-titlebar {
+            height: 38px;
+            background: var(--window-header);
+            border-bottom: 1px solid rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            cursor: move;
+        }
+
+        .budgie-window-controls {
+            display: flex;
+            gap: 6px;
+            margin-right: 15px;
+        }
+
+        .budgie-circle-btn {
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 8px;
+            color: transparent;
+            font-weight: bold;
+            transition: all 0.15s ease;
+        }
+
+        .budgie-window-controls:hover .budgie-circle-btn {
+            color: rgba(0,0,0,0.6);
+        }
+
+        .budgie-circle-btn.c-close { background-color: #ef4444; }
+        .budgie-circle-btn.c-min { background-color: #f59e0b; }
+        .budgie-circle-btn.c-max { background-color: #10b981; }
+
+        .budgie-title-text {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            letter-spacing: 0.3px;
+        }
+
+        .budgie-viewport {
+            flex-grow: 1;
+            padding: 22px;
+            overflow-y: auto;
+            background: rgba(15, 23, 30, 0.2);
+        }
+
+        /* SYSTEM CORE INTERFACES */
+        .solus-prop-card {
+            background: var(--card-bg);
+            border: 1px solid rgba(255,255,255,0.03);
+            border-radius: 5px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+
+        .prop-lbl {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            margin-bottom: 2px;
+        }
+
+        .prop-val {
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+
+        /* THE SIGNATURE BUDGIE RAVEN NOTIFICATION PANEL */
+        .raven-sidebar-panel {
+            position: fixed;
+            right: -360px;
+            top: 36px;
+            width: 340px;
+            height: calc(100vh - 36px);
+            background: var(--raven-bg);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid var(--border-color);
+            z-index: 2500;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 25px;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
+        }
+
+        .raven-sidebar-panel.raven-open {
+            right: 0;
+        }
+
+        .raven-header-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+            color: var(--accent-cyan);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Performance Monitor Nodes */
+        .perf-track-wrapper {
+            margin-bottom: 15px;
+        }
+        .perf-header-flex {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-bottom: 5px;
+        }
+        .perf-track {
+            background: rgba(255,255,255,0.05);
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .perf-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-cyan));
+            transition: width 0.4s ease;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="solus-top-panel">
+        <div class="panel-left-group">
+            <div class="solus-menu-trigger" onclick="launchBudgieApp('solus-center')">🕊️ <span>Solus</span></div>
+        </div>
+        <div class="panel-center-tray" id="budgie-clock-node">
+            Sat Jun 20, 7:18 PM
+        </div>
+        <div class="panel-right-group">
+            <span>🌐 Connected</span>
+            <div class="raven-toggle-btn" onclick="toggleRavenSidebarPanel()">⚙️</div>
+        </div>
+    </div>
+
+    <div class="budgie-dock-left">
+        <div class="dock-app-icon" id="dock-solus-center" onclick="toggleBudgieWindow('solus-center')">🕊️</div>
+        <div class="dock-app-icon" id="dock-hardware-center" onclick="toggleBudgieWindow('hardware-center')">📊</div>
+        <div class="dock-app-icon" id="dock-imperial-mint" onclick="toggleBudgieWindow('imperial-mint')">🪙</div>
+    </div>
+
+    <div class="solus-desktop-workspace" id="solus-canvas">
+
+        <div class="budgie-window" id="win-solus-center">
+            <div class="budgie-titlebar">
+                <div class="budgie-window-controls">
+                    <button class="budgie-circle-btn c-close" onclick="closeBudgieApp('solus-center')">✕</button>
+                    <button class="budgie-circle-btn c-min">—</button>
+                    <button class="budgie-circle-btn c-max">⤢</button>
+                </div>
+                <div class="budgie-title-text">Solus OS - Architecture Settings</div>
+            </div>
+            <div class="budgie-viewport">
+                <div class="solus-prop-card" style="background: linear-gradient(135deg, #1e3a8a, #0f172a);">
+                    <h3 style="margin-bottom: 2px;">Solus 4.5 Shannon</h3>
+                    <p style="font-size: 0.75rem; color: var(--text-dim);">Reskinned In-Browser Boot Environment Override</p>
+                </div>
+                <div class="solus-prop-card">
+                    <div class="prop-lbl">Bootloader Mode</div>
+                    <div class="prop-val" style="color: var(--accent-cyan);">Virtual Budgie Server Layer</div>
+                </div>
+                <div class="solus-prop-card">
+                    <div class="prop-lbl">Imperial Resource Balance</div>
+                    <div class="prop-val" id="solus-sheckle-val" style="color: #f59e0b;">480,000,000,000,000,000 💰</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="budgie-window" id="win-hardware-center">
+            <div class="budgie-titlebar">
+                <div class="budgie-window-controls">
+                    <button class="budgie-circle-btn c-close" onclick="closeBudgieApp('hardware-center')">✕</button>
+                    <button class="budgie-circle-btn c-min">—</button>
+                    <button class="budgie-circle-btn c-max">⤢</button>
+                </div>
+                <div class="budgie-title-text">System Resource Core</div>
+            </div>
+            <div class="budgie-viewport">
+                <div class="solus-prop-card">
+                    <div class="prop-lbl">Active Boot Strategy</div>
+                    <div class="prop-val" style="color: #10b981;">Fossapup64 9.5 Safe Recovery Layer</div>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-dim); line-height: 1.4;">
+                    If Solus failed on bare metal, running it inside an isolated web state ensures absolute loop performance without risking partition tables or GRUB rescue prompt failure states!
+                </p>
+            </div>
+        </div>
+
+        <div class="budgie-window" id="win-imperial-mint">
+            <div class="budgie-titlebar">
+                <div class="budgie-window-controls">
+                    <button class="budgie-circle-btn c-close" onclick="closeBudgieApp('imperial-mint')">✕</button>
+                    <button class="budgie-circle-btn c-min">—</button>
+                    <button class="budgie-circle-btn c-max">⤢</button>
+                </div>
+                <div class="budgie-title-text">Sovereign Capital Matrix</div>
+            </div>
+            <div class="budgie-viewport" style="text-align: center; padding-top: 30px;">
+                <div class="prop-lbl">Total Controlled Imperial Treasury Assets</div>
+                <h2 id="solus-mint-counter" style="font-size: 1.7rem; font-family: monospace; color: #f59e0b; margin: 10px 0;">480,000,000,000,000,000</h2>
+                <button style="background: var(--accent-blue); border: none; color: white; padding: 10px 20px; font-weight: bold; border-radius: 4px; cursor: pointer; margin-top: 15px;" onclick="addSolusSystemCapital()">
+                    🪙 Synthesize 100 Trillion Sheckles
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="raven-sidebar-panel" id="budgie-raven-panel">
+        <div class="raven-header-title">
+            <span>Raven Control Center</span>
+            <span style="cursor: pointer; font-size: 0.9rem;" onclick="toggleRavenSidebarPanel()">✕</span>
+        </div>
+        
+        <div class="perf-track-wrapper" style="margin-top: 20px;">
+            <div class="perf-header-flex"><span>Budgie Thread Load (CPU)</span><span id="raven-cpu-txt">0%</span></div>
+            <div class="perf-track"><div class="perf-fill" id="raven-cpu-bar"></div></div>
+        </div>
+
+        <div class="perf-track-wrapper">
+            <div class="perf-header-flex"><span>Fossapup Cache Memory (RAM)</span><span id="raven-ram-txt">0%</span></div>
+            <div class="perf-track"><div class="perf-fill" id="raven-ram-bar" style="background: #10b981;"></div></div>
+        </div>
+
+        <div class="solus-prop-card" style="margin-top: 30px; background: rgba(255,255,255,0.02);">
+            <div class="prop-lbl">System Architecture Notice</div>
+            <p style="font-size: 0.75rem; color: var(--text-dim); line-height: 1.3; margin-top: 4px;">
+                Budgie's window manager configuration metrics are parsing flawlessly inside this sandboxed virtual desktop.
+            </p>
+        </div>
+    </div>
+
+    <script>
+        window.solusState = {
+            sheckles: 480000000000000000,
+            activeApps: new Set(),
+            topZ: 100
+        };
+
+        // 1. Top Panel Clock Stream
+        function syncBudgiePanelClock() {
+            const clockNode = document.getElementById('budgie-clock-node');
+            const now = new Date();
+            clockNode.innerText = now.toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+        setInterval(syncBudgiePanelClock, 1000);
+
+        // 2. Data Budget Syncer
+        function refreshSolusTreasuryUI() {
+            const formatted = new Intl.NumberFormat('en-US').format(window.solusState.sheckles);
+            document.getElementById('solus-sheckle-val').innerText = formatted + " 💰";
+            document.getElementById('solus-mint-counter').innerText = formatted;
+        }
+
+        function addSolusSystemCapital() {
+            window.solusState.sheckles += 100000000000000;
+            refreshSolusTreasuryUI();
+        }
+
+        // 3. Performance Metric Core Loops (Feeds Raven Applet)
+        function refreshRavenTelemetryBars() {
+            const cpu = Math.floor(Math.random() * 20) + 8;
+            const ram = Math.floor(Math.random() * 4) + 44;
+
+            document.getElementById('raven-cpu-txt').innerText = `${cpu}%`;
+            document.getElementById('raven-cpu-bar').style.width = `${cpu}%`;
+            document.getElementById('raven-ram-txt').innerText = `${ram}%`;
+            document.getElementById('raven-ram-bar').style.width = `${ram}%`;
+        }
+        setInterval(refreshRavenTelemetryBars, 2000);
+
+        // 4. Raven Panel Toggle Switch
+        function toggleRavenSidebarPanel() {
+            document.getElementById('budgie-raven-panel').classList.toggle('raven-open');
+        }
+
+        // 5. Budgie Window Manager Subroutines
+        function launchBudgieApp(appId) {
+            const win = document.getElementById(`win-${appId}`);
+            const dockIcon = document.getElementById(`dock-${appId}`);
+
+            window.solusState.topZ++;
+            win.style.zIndex = window.solusState.topZ;
+
+            win.classList.add('window-open');
+            dockIcon.classList.add('running', 'focused');
+            window.solusState.activeApps.add(appId);
+
+            if (!win.style.top && !win.style.left) {
+                const spacing = (window.solusState.activeApps.size * 25) + 80;
+                win.style.top = `${spacing}px`;
+                win.style.left = `${spacing + 40}px`;
+            }
+        }
+
+        function closeBudgieApp(appId) {
+            document.getElementById(`win-${appId}`).classList.remove('window-open');
+            document.getElementById(`dock-${appId}`).classList.remove('running', 'focused');
+            window.solusState.activeApps.delete(appId);
+        }
+
+        function toggleBudgieWindow(appId) {
+            if (document.getElementById(`win-${appId}`).classList.contains('window-open')) {
+                closeBudgieApp(appId);
+            } else {
+                launchBudgieApp(appId);
+            }
+        }
+
+        // Budgie Window Move Tracker Server Setup
+        (function initBudgieDragServer() {
+            document.addEventListener('mousedown', function(e) {
+                const bar = e.target.closest('.budgie-titlebar');
+                if (!bar) return;
+
+                const win = bar.closest('.budgie-window');
+                window.solusState.topZ++;
+                win.style.zIndex = window.solusState.topZ;
+
+                const appId = win.id.replace('win-', '');
+                document.querySelectorAll('.dock-app-icon').forEach(i => i.classList.remove('focused'));
+                document.getElementById(`dock-${appId}`).classList.add('focused');
+
+                let sX = e.clientX - win.getBoundingClientRect().left;
+                let sY = e.clientY - win.getBoundingClientRect().top;
+
+                function drag(ev) {
+                    win.style.left = ev.clientX - sX + 'px';
+                    win.style.top = ev.clientY - sY + 'px';
+                }
+
+                document.addEventListener('mousemove', drag);
+                document.onmouseup = function() {
+                    document.removeEventListener('mousemove', drag);
+                    document.onmouseup = null;
+                };
+            });
+        })();
+
+        window.onload = () => {
+            syncBudgiePanelClock();
+            refreshSolusTreasuryUI();
+            refreshRavenTelemetryBars();
+            launchBudgieApp('solus-center');
+        };
+    </script>
+</body>
+</html>
